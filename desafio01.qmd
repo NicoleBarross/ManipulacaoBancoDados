@@ -1,0 +1,66 @@
+---
+title: "Desafio 01"
+author: "Nicole de Barros Silva"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+Utilize o conjunto de dados `flights.csv.zip` disponível em <https://www.kaggle.com/usdot/flight-delays> e carregue os dados utilizando as funções:
+
+-   `read.csv()` do pacote `base` do **R**
+
+-   `read_csv()` do pacote `readr` do **R**
+
+-   `read_csv()` do `pandas` no **Python**
+
+
+Qual dessas três formas de carregar os dados é mais rápida? (calcule o tempo exato que demorou cada método em carregar os dados no seu computador)
+
+## Observação: no link acima, baixar o arquivo `flights.csv`, zipar ele (e salvar como `flights.csv.zip`).
+Criar um ambiente virtual 'env_me315' e usar ele quando for utilizar Python.
+
+```{r}
+library(reticulate) # carrega o pacote reticulate, que integra R e Python
+virtualenv_create("env_me315") # cria um ambiente virtual Python chamado 'env_me315'
+```
+
+```{r}
+use_virtualenv("env_me315", required = TRUE) # define que vamos usar o ambiente virtual criado
+py_config() # mostra detalhes da configuração do Python em uso 
+```
+
+```{r}
+py_install("pandas", envname = "env_me315") # instala a biblioteca pandas dentro do ambiente virtual
+```
+
+```{r}
+ini <- Sys.time()
+dados <- read.csv(unz("flights.csv.zip",  "flights.csv")) # lê o arquivo flights.csv dentro do zip usando a função base R
+fim <- Sys.time()
+fim - ini
+```
+
+```{r}
+#install.packages("readr")
+#install.packages("vroom")
+```
+
+```{r}
+library(readr)
+library(vroom)
+ini <- Sys.time()
+dados <- read_csv("flights.csv.zip") # lê o CSV comprimido diretamente do zip
+fim <- Sys.time()
+fim - ini
+```
+
+```{python}
+import time # biblioteca para medir tempo
+import pandas as pd # importa o pandas para manipulação de dados
+ini = time.time()
+dados = pd.read_csv("flights.csv.zip", compression="zip", header=0) # lê o CSV zipado usando pandas
+fim = time.time()
+fim - ini
+```
