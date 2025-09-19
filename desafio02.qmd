@@ -1,0 +1,154 @@
+---
+title: "Desafio02"
+author: "Nicole de Barros Silva"
+format: html
+editor: visual
+---
+
+## Quarto
+
+```{r}
+library(reticulate) # Carrega o pacote reticulate, que faz a integração entre R e Python
+virtualenv_create("r-reticulate", python = "C:/Program Files/Python312/python.exe") # Cria um ambiente virtual chamado "r-reticulate"
+# Aqui o argumento python = "C:/ProgramFiles/Python312/python.exe" define explicitamente qual executável Python será usado para criar o virtualenv
+```
+```{r}
+use_virtualenv("r-reticulate", required = TRUE) # Indica ao R (via pacote reticulate) que deve usar o ambiente virtual "r-reticulate".
+py_config() # Mostra as informações de configuração do Python atualmente em uso pelo reticulate
+```
+#Questao1
+As estatísticas suficientes para resolução desse problema são:
+a) número total de voos(para cada combinacao dia/mes/cia)
+b) número de voos (dentre os apontados acima) que tem a coluna arrival_delay > 10 
+Variáveis necessárias: AIRLINE, ARRIVAL_DELAY, DAY, MONTH
+
+
+```{python}
+#Questao2
+# Função para processar cada chunk
+def getStats(input, pos):
+    # manter só as colunas necessárias (cria uma cópia para não modificar o DataFrame original)
+    df = input[['DAY', 'MONTH', 'AIRLINE', 'ARRIVAL_DELAY']].copy()
+    
+    # filtro das cias e remover NAs nas colunas de interesse
+    df = df[
+        (df['AIRLINE'].isin(['AA', 'DL', 'UA', 'US'])) & # filtra apenas as 4 cias pedidas
+        (df['DAY'].notna()) & # remove linhas com DAY nulo
+        (df['MONTH'].notna()) & # remove linhas com MONTH nulo
+        (df['ARRIVAL_DELAY'].notna()) # remove linhas com ARRIVAL_DELAY nulo
+    ]
+    
+    # agrupa por AIRLINE, DAY, MONTH e calcular as estatísticas suficientes:
+    result = (
+        df.groupby(['AIRLINE', 'DAY', 'MONTH'], as_index=False)
+        .agg(
+            n=('ARRIVAL_DELAY', 'size'),  # n: número de voos
+            atrasos=('ARRIVAL_DELAY', lambda x: (x > 10).sum()) # atrasos: conta quantos ARRIVAL_DELAY > 10 (atrasos superior a 10 minutos)
+        )
+    )
+    
+    return result# retorna um DataFrame/tibble com colunas: AIRLINE, DAY, MONTH, n, atrasos
+```
+
+```{python}
+#Questao3
+import pandas as pd # importa pandas (manipulação de tabelas)
+import time # importa time para medir tempo de execução
+
+# Leitura em chunks (100000 registros)
+
+ini = time.time()  # marca início do processamento para medir tempo
+
+results = []   # lista para acumular os DataFrames de cada chunk
+
+# Lê apenas as colunas necessárias 
+usecols = ['DAY', 'MONTH', 'AIRLINE', 'ARRIVAL_DELAY']
+
+# pd.read_csv com chunksize faz a leitura em blocos; aqui arquivo compactado em zip
+# o loop percorre TODOS os chunks até o fim do arquivo
+for i, chunk in enumerate(pd.read_csv("flights.csv (2).zip", 
+                                      compression="zip", # indica que o arquivo está compactado em zip
+                                      chunksize=100000,  # tamanho do chunk (100.000 linhas por iteração)
+                                      usecols=usecols)): # ler somente as colunas especificadas para economizar memória
+    stats = getStats(chunk, i)   # aplica a função getStats ao chunk atual
+    results.append(stats) # armazena o resultado parcial na lista
+
+# Junta todos os resultados em um único DataFrame
+in3 = pd.concat(results, ignore_index=True)
+
+fim = time.time() # marca fim do processamento
+print("Tempo de execução:", round(fim - ini, 2), "segundos") #imprime tempo total
+```
+
+```{python}
+#Questao4
+import pandas as pd
+
+# Define a função compute_stats que recebe um DataFrame df com colunas: AIRLINE, DAY, MONTH, n (total de voos), atrasos (número de voos atrasados > 10min)
+def compute_stats(df):
+    # Agrupa os dados pelas colunas AIRLINE, DAY e MONTH
+    # Para cada grupo, calcula o percentual de atrasos: soma de atrasos do grupo / soma de voos (n) do grupo
+    result = (
+        df.groupby(['AIRLINE', 'DAY', 'MONTH'], as_index=False) # agrupa por companhia, dia e mês
+          .agg(Perc=('atrasos', # cria coluna Perc
+          lambda x: x.sum() / df.loc[x.index, 'n'].sum())) # calcula percentual de atrasos
+    )
+
+    # Cria uma nova coluna 'Data' combinando YEAR=2015, MONTH e DAY.
+    # pd.to_datetime converte essas colunas em um formato de data válido (AAAA-MM-DD)    
+    result['Data'] = pd.to_datetime(
+        result[['DAY', 'MONTH']].assign(Year=2015)[['Year', 'MONTH', 'DAY']]
+    )
+
+    # Seleciona apenas as colunas finais
+    result = result[['AIRLINE', 'Data', 'Perc']]
+   
+    # Retorna o DataFrame processado (com as estatísticas finais de interesse)
+    return result
+
+# Aplica compute_stats ao DataFrame concatenado dos resultados parciais
+in5 = compute_stats(in3)
+```
+
+```{r}
+reticulate::py_install("matplotlib") # instala a biblioteca Python "matplotlib" (usada para criar gráficos)
+reticulate::py_install("calplot") # instala a biblioteca Python "calplot" (usada para gerar mapas de calor em formato de calendário)
+```
+
+```{python}
+# Importa bibliotecas necessárias
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg") 
+import matplotlib.pyplot as plt
+import calplot
+
+# Função para criar base de calendário
+def base_calendario(stats, cia): 
+    df = stats[stats['AIRLINE'] == cia].copy() # Filtra o DataFrame 'stats' apenas para a companhia aérea especificada (cia)
+    df['Data'] = pd.to_datetime(df['Data']) # Converte a coluna 'Data' para o tipo datetime 
+    df.set_index('Data', inplace=True) # Define a coluna 'Data' como índice do DataFrame (necessário para usar no calplot)
+
+    return df['Perc'] # Retorna apenas a coluna 'Perc' (percentual de atrasos), indexada por data
+  
+# Cria as séries de percentuais de atraso para cada companhia aérea
+cAA = base_calendario(in5, 'AA')
+cDL = base_calendario(in5, 'DL')
+cUA = base_calendario(in5, 'UA')
+cUS = base_calendario(in5, 'US')
+
+# Gera e exibe o gráfico de calendário (heatmap) para cada companhia aérea
+calplot.calplot(cAA, cmap=plt.get_cmap('coolwarm'), suptitle="American Airlines")
+plt.show()
+
+calplot.calplot(cDL, cmap=plt.get_cmap('coolwarm'), suptitle="Delta Airlines")
+plt.show()
+
+calplot.calplot(cUA, cmap=plt.get_cmap('coolwarm'), suptitle="United Airlines")
+plt.show()
+
+calplot.calplot(cUS, cmap=plt.get_cmap('coolwarm'), suptitle="US Airways")
+plt.show()
+
+```
+
