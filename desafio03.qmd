@@ -1,0 +1,26 @@
+---
+title: "Desafio 3"
+author: "Nicole de Barros Silva"
+format: html
+editor: visual
+---
+
+```{r}
+#install.packages("arrow") # Instala o pacote arrow, que permite ler e escrever arquivos no formato Parquet
+library(arrow)
+
+#install.packages("jsonlite") # Instala o pacote jsonlite, usado para manipulação de arquivos no formato JSON
+library(jsonlite)
+```
+
+```{r}
+dados_parquet <- read_parquet("all_weather_data.parquet")  # Lê o arquivo Parquet e armazena os dados no objeto 'dados_parquet'
+```
+
+```{r}
+unzip("livros.json.zip", exdir = "dados2")  #Extrai o conteudo do arquivo compactado 'livros.json.zip' para a pasta 'dados2'
+```
+
+```{r}
+dados_json <- fromJSON("dados2/livros.json") # Lê o arquivo JSON extraído e armazena os dados no objeto 'dados_json'
+```
