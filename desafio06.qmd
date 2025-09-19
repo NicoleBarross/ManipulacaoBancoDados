@@ -1,0 +1,230 @@
+---
+title: "Desafio 06"
+author: "Nicole de Barros Silva"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+## **SQLite**
+
+O **SQLite** é uma biblioteca embutida em um processo único que é autônomo, não necessita de servidor e exige zero de configuração. O código é de domínio público e seu uso é gratuito em qualquer tipo de utilização. Trata-se de um sistema SQL completo, capaz de utilizar múltiplas tabelas, índices, gatilhos e visões. Ele funciona, virtualmente, em qualquer plataforme (incluindo móveis) e pesa cerca de 600KB.
+
+## **Objetivos**
+
+Ao fim deste laboratório, você deverá ser capaz de: - Conectar-se a um banco de dados do tipo SQLite utilizando o R como interface; - Explorar quais são as tabelas disponíveis no referido banco de dados; - Identificar quais são as colunas de uma dada tabela existente no banco de dados; - Realizar pesquisas simples; - Extrair registros do banco de dados e armazená-las em objetos do R; - Realizar pesquisas mais complexas, utilizando `WHERE`, `GROUP BY`, `INNER JOIN`, `HAVING`, `LIMIT`, `DISTINCT` e `GLOB`.
+
+## **Recomendações Gerais**
+
+-   Toda manipulação de dados deve ocorrer com verbos do pacote `dplyr`.
+
+-   O livro `R for Data Science` possui um excelente capítulo sobre *strings*.
+
+## **Atividade**
+
+1.  Baixe o arquivo `disco.db` e armazene na variável `path` o caminho completo (pasta) na qual o arquivo foi gravado. Utilize o comando `file.path()` para combinar a variável `path` com o nome do arquivo (`disco.db`) e obter o nome do arquivo com seu respectivo caminho. Armazene este resultado na variável `fname`.
+
+```{r}
+path <- "."           # define o caminho como ".", que representa a pasta atual onde o R está trabalhando
+fname <- file.path(path, "disco.db")  # cria o caminho completo do arquivo "disco.db" dentro da pasta definida em 'path'
+fname                     
+```
+
+2.  Utilizando o pacote `RSQLite`, conecte-se ao arquivo de banco de dados. Armazene a conexão na variável `conn`.
+
+```{r}
+# carrega os pacotes necessários
+library(DBI)
+library(RSQLite)
+
+# conecta ao banco de dados usando o caminho salvo em fname
+conn <- dbConnect(SQLite(), dbname = fname)
+```
+
+3.  Liste as tabelas existentes no banco de dados.
+
+```{r}
+# lista as tabelas do banco
+dbListTables(conn)
+```
+
+4.  Identifique os nomes de todas as colunas existentes na tabela `customers`.
+
+```{r}
+dbListFields(conn,'customers') # lista todos os nomes dos campos (colunas) da tabela "customers"
+```
+
+5.  Utilizando **apenas** `SQLite`, com o apoio do comando `dbGetQuery`, identifique quantos clientes estão atualmente cadastrados neste banco de dados.
+
+```{r}
+total_clientes <- dbGetQuery(conn, "
+  SELECT COUNT(*) AS total_clientes
+  FROM customers;
+")
+total_clientes
+# executa a consulta SQL no banco
+# conta quantos clientes existem e dá o nome 'total_clientes' ao resultado
+# usa a tabela 'customers'
+```
+
+6.  Utilizando **apenas** `SQLite`, identifique o número de países diferentes em que moram os clientes encontrados acima.
+
+```{r}
+num_paises <- dbGetQuery(conn, "
+  SELECT COUNT(DISTINCT Country) AS total_paises
+  FROM customers;
+")
+num_paises
+
+# executa uma consulta SQL no banco de dados conectado pela variável 'conn' e armazena o resultado em 'num_paises'
+# conta o número de valores distintos na coluna 'Country' e nomeia o resultado como 'total_paises'
+# indica que a contagem deve ser feita na tabela 'customers'
+```
+
+7.  Utilizando **apenas** `SQLite`, quantos clientes existem por país? A tabela resultante deve conter o nome do país e a respectiva contagem, além de ser ordenada de maneira decrescente pela referida contagem.
+
+```{r}
+clientes_por_pais <- dbGetQuery(conn, "
+  SELECT Country, COUNT(*) AS total_clientes
+  FROM customers
+  GROUP BY Country
+  ORDER BY total_clientes DESC;
+")
+clientes_por_pais
+
+# seleciona o país e conta quantos clientes há em cada país
+# usa a tabela customers
+# agrupa os resultados por país
+# ordena de forma decrescente pela contagem de clientes
+```
+
+8.  Quais são os 5 países com mais clientes registrados? Use apenas `SQLite`.
+
+```{r}
+top5_paises <- dbGetQuery(conn, "
+  SELECT Country, COUNT(*) AS total_clientes
+  FROM customers
+  GROUP BY Country
+  ORDER BY total_clientes DESC
+  LIMIT 5;
+")
+top5_paises
+
+# seleciona o país e conta quantos clientes há em cada país
+# usa a tabela customers
+# agrupa os resultados por país
+# ordena de forma decrescente pela contagem de clientes
+# limita a saída aos 5 primeiros resultados
+```
+
+9.  Quais são os países registrados que possuem apenas 6 letras no nome?
+
+```{r}
+paises_6_letras <- dbGetQuery(conn, "
+  SELECT DISTINCT Country
+  FROM customers
+  WHERE LENGTH(Country) = 6;
+")
+paises_6_letras
+
+# seleciona apenas os nomes de países únicos
+# considera os dados da tabela 'customers'
+# mantém apenas os países cujo nome tem exatamente 6 letras
+```
+
+10. Quais foram as músicas compradas por clientes brasileiros?
+
+```{r}
+musicas_brasil <- dbGetQuery(conn, "
+  SELECT DISTINCT t.Name AS Musica
+  FROM customers c
+  JOIN invoices i ON c.CustomerId = i.CustomerId
+  JOIN invoice_items ii ON i.InvoiceId = ii.InvoiceId
+  JOIN tracks t ON ii.TrackId = t.TrackId
+  WHERE c.Country = 'Brazil'
+  ORDER BY t.Name
+")
+musicas_brasil
+
+# seleciona os nomes das músicas compradas, sem repetições
+# usa a tabela 'customers' com apelido 'c'
+# junta com 'invoices' para relacionar clientes e faturas
+# junta com 'invoice_items' para relacionar faturas e músicas
+# junta com 'tracks' para obter os nomes das músicas
+# filtra apenas clientes do Brasil
+# ordena os nomes das músicas em ordem alfabética
+```
+
+Questões Extras
+
+Qual o álbum mais tocado por pais?
+
+```{r}
+album_mais_tocado_pais <- dbGetQuery(conn, "
+  SELECT Country, Album, TotalVendas
+  FROM (
+      SELECT c.Country,
+             a.Title AS Album,
+             COUNT(*) AS TotalVendas,
+             RANK() OVER (
+                 PARTITION BY c.Country
+                 ORDER BY COUNT(*) DESC
+             ) AS rnk
+      FROM customers c
+      JOIN invoices i ON c.CustomerId = i.CustomerId
+      JOIN invoice_items ii ON i.InvoiceId = ii.InvoiceId
+      JOIN tracks t ON ii.TrackId = t.TrackId
+      JOIN albums a ON t.AlbumId = a.AlbumId
+      GROUP BY c.Country, a.Title
+  )
+  WHERE rnk = 1
+  ORDER BY TotalVendas DESC, Country;
+")
+album_mais_tocado_pais
+
+# seleciona o país, o álbum e o total de vendas
+# calcula a contagem de vendas por país e álbum
+# usa a função RANK() para numerar os álbuns dentro de cada país
+# mantém apenas os álbuns mais vendidos (rnk = 1) em cada país
+# ordena pelo total de vendas (decrescente) e depois pelo país
+```
+
+Qual o artista mais tocado por pais?
+
+```{r}
+artista_mais_tocado_pais <- dbGetQuery(conn, "
+  SELECT Country, Artista, TotalVendas
+  FROM (
+      SELECT c.Country,
+             ar.Name AS Artista,
+             COUNT(*) AS TotalVendas,
+             RANK() OVER (
+                 PARTITION BY c.Country
+                 ORDER BY COUNT(*) DESC
+             ) AS rnk
+      FROM customers c
+      JOIN invoices i ON c.CustomerId = i.CustomerId
+      JOIN invoice_items ii ON i.InvoiceId = ii.InvoiceId
+      JOIN tracks t ON ii.TrackId = t.TrackId
+      JOIN albums a ON t.AlbumId = a.AlbumId
+      JOIN artists ar ON a.ArtistId = ar.ArtistId
+      GROUP BY c.Country, ar.Name
+  )
+  WHERE rnk = 1
+  ORDER BY TotalVendas DESC, Country;
+")
+artista_mais_tocado_pais
+
+# seleciona o país, o artista e o total de vendas
+# calcula a contagem de vendas por país e artista
+# usa a função RANK() para numerar os artistas dentro de cada país
+# mantém apenas os artistas mais vendidos (rnk = 1) em cada país
+# ordena pelo total de vendas (decrescente) e depois pelo país
+```
+
+11. Desconecte do banco de dados.
+
+```{r}
+dbDisconnect(conn) # fecha a conexão com o banco de dados
+```
