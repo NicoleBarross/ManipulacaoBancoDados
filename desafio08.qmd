@@ -1,0 +1,152 @@
+---
+title: "Desafio 08"
+author: "Nicole de Barros Silva"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+## SQLite - Parte II
+
+Benilton Carvalho, Guilherme Ludwig
+
+# SQLite
+
+O SQLite é uma biblioteca embutida em um processo único que é autônomo, não necessita de servidor e exige zero de configuração. O código é de domínio público e seu uso é gratuito em qualquer tipo de utilização. Trata-se de um sistema SQL completo, capaz de utilizar múltiplas tabelas, índices, gatilhos e visões. Ele funciona, virtualmente, em qualquer plataforme (incluindo móveis) e pesa cerca de 600KB.
+
+# Objetivos
+
+Ao fim deste laboratório, você deverá ser capaz de:
+
+Conectar-se a um banco de dados do tipo SQLite utilizando o R como interface; Explorar quais são as tabelas disponíveis no referido banco de dados; Identificar quais são as colunas de uma dada tabela existente no banco de dados; Realizar pesquisas simples; Extrair registros do banco de dados e armazená-las em objetos do R; Realizar algumas pesquisas complexas, utilizando WHERE, INNER JOIN. Criar novas tabelas no banco de dados. Fonte do problema: Estes dados são de uma iniciativa de publicidade de desempenho de alunos e professores nas Universidades Americanas. A UW-Madison disponibilizou os seus dados online (no Office of the Registrar: https://registrar.wisc.edu/), e alguém trouxe os dados para uma competição no Kaggle (https://www.kaggle.com/Madgrades/uw-madison-courses). Nesta atividades, examinaremos disciplinas oferecidas no assunto de Estatística pela referida Universidade.
+
+# Observações
+
+Esta tarefa não deve ser realizada no site jupyter.ime.unicamp.br ; Você deve realizar o download dos dados para o computador que estiver utilizando e, então, iniciar a atividade; Recomenda-se a utilização dos seguintes pacotes: RSQLite Toda a atividade deve ser realizada utilizando-se apenas de SQLite (i.e., não utilize dbplyr);
+
+# Atividade
+
+1.  Baixe o arquivo uwmadison.sqlite3. Conecte-se a ele usando o pacote RSQLite, armazenando a conexão em uma variável conn.
+
+```{r}
+library(RSQLite)
+
+# Descompactar
+unzip("database.sqlite3.zip", exdir = "data_SQL")
+
+# Conectar ao banco
+conn <- dbConnect(SQLite(), "data_SQL/database.sqlite3")
+```
+
+2.  Quem são e quantos são os professores que lecionaram disciplinas cujo tópico era estatística (subjects.abbreviation='STAT');
+
+```{r}
+professores_stat <- dbGetQuery(conn, "
+SELECT DISTINCT i.name AS professor
+FROM instructors i
+JOIN teachings t ON i.id = t.instructor_id
+JOIN sections s ON t.section_uuid = s.uuid
+JOIN course_offerings co ON s.course_offering_uuid = co.uuid
+JOIN subject_memberships sm ON co.uuid = sm.course_offering_uuid
+JOIN subjects sub ON sm.subject_code = sub.code
+WHERE sub.abbreviation = 'STAT';
+")
+
+n_professores_stat <- nrow(professores_stat)
+
+print(professores_stat)
+print(n_professores_stat)
+
+
+# Executa a consulta SQL na conexão 'conn' e armazena o resultado em 'professores_stat' (um data.frame).
+# Seleciona os nomes dos instrutores; DISTINCT evita repetir o mesmo professor várias vezes; renomeia a coluna para 'professor'.
+# Indica a tabela base 'instructors' com o alias 'i'.
+# Junta com 'teachings' para saber quais turmas/ensinos cada instrutor lecionou.
+# Junta com 'sections' para ligar cada teaching à sua seção correspondente.
+# Junta com 'course_offerings' para obter a oferta de curso associada à seção.
+# Junta com 'subject_memberships' para ver que subjects (tópicos) pertencem àquela oferta de curso.
+# Junta com 'subjects' para acessar atributos do subject (como 'abbreviation').
+# Filtra apenas os registros cujo subject tem abreviação 'STAT' (ou seja, tópicos de Estatística).
+# Fecha a string SQL e o argumento passado para dbGetQuery.
+# Conta quantas linhas (professores distintos) foram retornadas pela consulta.
+
+```
+
+3.  O GPA americano é definido numa escala de 0 a 4, em que A = 4, AB = 3.5, B = 3, BC = 2.5, C = 2, D = 1 e F = 0. Determinando a nota média de cada oferecimento pela ponderação da quantidade de alunos em cada extrato com os valores numéricos de cada conceito, indique (no que se referente a disciplinas no assunto de estatística):
+
+Quem é o professor mais difícil? Quem é o professor mais fácil? Qual é a disciplina mais difícil? Qual é a disciplina mais fácil?
+
+```{r}
+# Seleciona nome do professor, nome da disciplina e contagem de notas por seção para o departamento STAT
+grades_stat <- dbGetQuery(conn, "
+  SELECT i.name AS professor,
+         c.name AS course_name,
+         gd.a_count, gd.ab_count, gd.b_count, gd.bc_count,
+         gd.c_count, gd.d_count, gd.f_count
+  FROM grade_distributions gd
+  JOIN sections s ON gd.section_number = s.number AND gd.course_offering_uuid = s.course_offering_uuid
+  JOIN teachings t ON s.uuid = t.section_uuid
+  JOIN instructors i ON t.instructor_id = i.id
+  JOIN course_offerings co ON s.course_offering_uuid = co.uuid
+  JOIN courses c ON co.course_uuid = c.uuid
+  JOIN subject_memberships sm ON co.uuid = sm.course_offering_uuid
+  JOIN subjects subj ON sm.subject_code = subj.code
+  WHERE subj.abbreviation = 'STAT'
+")
+
+# Define quais colunas contêm contagens de notas
+cols <- c("a_count", "ab_count", "b_count", "bc_count", "c_count", "d_count", "f_count")
+
+# Converte todas essas colunas de character para numérico, garantindo que operações matemáticas funcionem
+grades_stat[cols] <- lapply(grades_stat[cols], as.numeric)
+
+# Calcula o total de alunos em cada oferecimento (soma de todas as contagens de notas)
+grades_stat$total <- with(grades_stat, a_count + ab_count + b_count + bc_count + c_count + d_count + f_count)
+
+# Calcula o GPA de cada seção/oferecimento
+# Se total > 0, aplica a fórmula ponderada do GPA; caso contrário, atribui NA para evitar divisão por zero
+grades_stat$gpa <- with(grades_stat, 
+                        ifelse(total > 0,
+                               (4*a_count + 3.5*ab_count + 3*b_count + 2.5*bc_count +
+                                2*c_count + 1*d_count + 0*f_count) / total,
+                               NA))
+
+# Calcula o GPA médio de cada professor usando aggregate, ignorando valores NA
+gpa_prof <- aggregate(gpa ~ professor, data = grades_stat, mean, na.rm = TRUE)
+
+# Calcula o GPA médio de cada disciplina usando aggregate, ignorando valores NA
+gpa_course <- aggregate(gpa ~ course_name, data = grades_stat, mean, na.rm = TRUE)
+
+# Seleciona todos os professores com o menor GPA médio (mais difícil), considerando empates
+prof_mais_dificil <- gpa_prof[gpa_prof$gpa == min(gpa_prof$gpa), ]
+
+# Seleciona todos os professores com o maior GPA médio (mais fácil), considerando empates
+prof_mais_facil   <- gpa_prof[gpa_prof$gpa == max(gpa_prof$gpa), ]
+
+# Seleciona todas as disciplinas com o menor GPA médio (mais difícil), considerando empates
+disc_mais_dificil <- gpa_course[gpa_course$gpa == min(gpa_course$gpa), ]
+
+# Seleciona todas as disciplinas com o maior GPA médio (mais fácil), considerando empates
+disc_mais_facil   <- gpa_course[gpa_course$gpa == max(gpa_course$gpa), ]
+
+# Exibe  todos os professores mais difíceis, professores mais fáceis, disciplinas mais difíceis, disciplinas mais fáceis, separados por vírgula, com o GPA médio arredondado
+cat("Professor(es) mais difícil(s):", paste(prof_mais_dificil$professor, collapse = ", "),
+    "com GPA médio =", round(min(prof_mais_dificil$gpa), 2), "\n")
+cat("Professor(es) mais fácil(s):", paste(prof_mais_facil$professor, collapse = ", "),
+    "com GPA médio =", round(max(prof_mais_facil$gpa), 2), "\n")
+cat("Disciplina(s) mais difícil(s):", paste(disc_mais_dificil$course_name, collapse = ", "),
+    "com GPA médio =", round(min(disc_mais_dificil$gpa), 2), "\n")
+cat("Disciplina(s) mais fácil(s):", paste(disc_mais_facil$course_name, collapse = ", "),
+    "com GPA médio =", round(max(disc_mais_facil$gpa), 2), "\n")
+```
+```{r}
+#calcula quando o html foi gerado
+cat(paste0("Este HTML foi gerado em: ", Sys.time()))
+```
+
+4.  Desconecte do banco de dados.
+
+```{r}
+dbDisconnect(conn)
+```
