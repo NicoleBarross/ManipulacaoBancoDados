@@ -1,0 +1,212 @@
+---
+title: "Desafio 13"
+author: "Nicole de Barros Silva"
+format:
+  html: 
+    self-contained: TRUE
+editor: visual
+---
+
+## Laboratório 3: SQLite com Polars
+
+## Objetivo
+
+Dados relacionais são uma constante no exercício da profissão do estatístico. Esta estratégia permite uma representação mais efetiva de dados estruturados, oferecendo a possibilidade de análises computacionalmente mais eficientes. Neste laboratório, trabalharemos com dados relacionais a partir de uma base de dados SQLite.
+
+## Os Dados
+
+O banco de dados para esta atividade é o “IMDb Movie Data”, que possui informações sobre filmes, atores, diretores, gêneros e outros. Para os arquivos indicados abaixo, considere que o símbolo \N representa valores faltantes. Observe com cuidado a extensão dos arquivos para uma indicação do formato do mesmo.
+
+1.  title.basics0.tsv.gz (Informações Básicas dos Filmes) Link: https://drive.google.com/file/d/1iYqAGTtIhRLK4ycFK41hYaWK3iKfOdT2/view?usp=sharing Coluna Descrição tconst Identificador único do título (ex: tt1234567) titleType Tipo do título (ex: movie, short, tvSeries) primaryTitle Título principal originalTitle Título original isAdult Indica se é conteúdo adulto (0: não, 1: sim) startYear Ano de lançamento/início endYear Ano de término (para séries) runtimeMinutes Duração em minutos genres Gêneros separados por vírgula (ex: Action, Comedy)
+
+2.  title.ratings.tsv.gz (Avaliações dos Filmes) Link: https://drive.google.com/file/d/1kZuj1lnXkPrNURzwYuc4FXTM7Pvknr3o/view?usp=sharing Coluna Descrição tconst Identificador único do título (ex: tt1234567) averageRating Nota média dos usuários (escala de 1 a 10) numVotes Número de votos recebidos
+
+3.  title.principals0.tsv.gz (Elenco e Equipe Técnica) Link: https://drive.google.com/file/d/1oLR2_mFyRHEiKlqFKt4QDVYlGH8LC4mn/view?usp=sharing Coluna Descrição tconst Identificador único do título (ex: tt1234567) nconst Identificador único da pessoa (ex: nm1234567) category Categoria de trabalho da pessoa (ex: actor, director) job Função específica desempenhada (para não-atores) characters Personagens interpretados (para atores)
+
+4.  movies.sqlite3 (Banco de Dados em SQLite) Link: https://drive.google.com/file/d/1l-rnMw2bsmbZ-e5h9SGydqGmv9fNAtWs/view?usp=sharing
+
+```{r}
+library(reticulate) #abrindo o pacote reticulate
+```
+
+```{r}
+#reticulate::py_install("pandas")
+#reticulate::py_install("polars")
+
+```
+
+```{python}
+#!pip install pandas
+#!pip install polars
+
+```
+
+```{python}
+import pandas as pd
+import polars as pl
+import sqlite3
+import gc
+import os
+```
+
+## Atividade
+
+1.  Crie um banco de dados SQLite utilizando os 3 arquivos acima. O banco de dados deve conter as seguintes tabelas: basics, ratings e principals.
+
+```{python}
+# Se o arquivo do banco de dados já existir, remove para criar um novo
+if os.path.exists("movies.sqlite3"):
+    os.remove("movies.sqlite3")
+
+# Cria a conexão com o banco SQLite
+# 'con' é a conexão, 'cursor' permite executar comandos SQL
+con = sqlite3.connect("movies.sqlite3")
+cursor = con.cursor()
+
+# Lista dos arquivos que serão lidos e os nomes das tabelas correspondentes
+arquivos = [
+    ("title.basics0.tsv.gz", "basics"),      
+    ("title.ratings.tsv.gz", "ratings"),     
+    ("title.principals0.tsv.gz", "principals") 
+]
+
+# Define o tamanho do chunk para leitura em blocos
+chunk_size = 500_000
+
+# Loop pelos arquivos para leitura e gravação no SQLite
+for file_path, table_name in arquivos:
+    print(f"\n Lendo e gravando '{table_name}' em blocos...")
+
+    # Remove tabela antiga se existir, para evitar conflitos ou duplicações
+    cursor.execute(f"DROP TABLE IF EXISTS {table_name}")
+    con.commit()
+
+    i = 0
+    # Lê o arquivo em pedaços (chunks) usando Pandas
+    # - sep="\t": arquivos TSV (separados por tabulação)
+    # - compression="gzip": arquivos compactados
+    # - dtype=str: lê todas as colunas como string para evitar problemas de tipo
+    # - na_values="\\N": converte '\N' em valores nulos (NaN)
+    # - chunksize=chunk_size: define o tamanho do bloco 
+    for chunk in pd.read_csv(
+        file_path,
+        sep="\t",
+        compression="gzip",
+        dtype=str,
+        na_values="\\N",
+        chunksize=chunk_size
+    ):
+        i += 1
+        # Grava o chunk atual no banco de dados
+        # if_exists="append" adiciona ao final da tabela se já existir
+        # index=False evita criar uma coluna extra com índice do DataFrame
+        chunk.to_sql(table_name, con, if_exists="append", index=False)
+        print(f"  Bloco {i} gravado ({len(chunk)} linhas)")
+
+        # Libera memória do chunk lido
+        del chunk
+        gc.collect()
+
+    print(f" '{table_name}' concluído!")
+
+```
+
+
+
+2.  (Utilizando SQL, responda): Quais são os 5 filmes com as maiores notas (averageRating)? Apresente uma solução capaz de desempatar os filmes baseando-se no número de votos recebidos.
+
+```{python}
+# Cria a conexão com o banco SQLite
+# 'con' será usada para executar a consulta SQL
+con = sqlite3.connect("movies.sqlite3")
+
+# Consulta SQL para obter os 5 filmes com as maiores notas
+# CAST é usado para garantir que os valores sejam tratados numericamente
+query = """
+SELECT 
+    b.primaryTitle,                           
+    CAST(r.averageRating AS REAL) AS averageRating,  
+    CAST(r.numVotes AS INTEGER) AS numVotes          
+FROM ratings r
+JOIN basics b ON b.tconst = r.tconst         
+WHERE b.titleType = 'movie'                   
+ORDER BY averageRating DESC, numVotes DESC    
+LIMIT 5;                                     
+"""
+
+# Executa a consulta SQL e lê o resultado diretamente usando Polars
+# pl.read_database permite executar a query usando a conexão SQLite
+top_filmes = pl.read_database(query, con)
+
+# Exibe os 5 filmes com maiores notas
+print(top_filmes)
+
+```
+
+
+3.  (Utilizando SQL, responda): Qual é o gênero mais frequente entre os filmes com nota maior que 8?
+
+
+```{python}
+# Lê dados de interesse
+df = pl.read_database("""
+    SELECT b.genres, r.averageRating
+    FROM basics b
+    JOIN ratings r ON b.tconst = r.tconst
+    WHERE r.averageRating > 8
+""", con)
+
+# Divide a coluna de gêneros em listas
+df = df.with_columns(pl.col("genres").str.split(","))
+# Explode listas em linhas
+df_exploded = df.explode("genres")
+
+# Conta frequência
+top_gen = (
+    df_exploded
+    .group_by("genres")
+    .len()
+    .sort("len", descending=True)
+    .limit(1)
+)
+print(top_gen)
+```
+
+
+
+4.  (Utilizando SQL, responda): Quais são os 3 atores/atrizes que mais participaram de filmes com nota maior que 7.5?
+
+
+```{python}
+
+# Consulta SQL para encontrar os 3 atores/atrizes que mais participaram de filmes com nota > 7.5
+query = """
+SELECT 
+    p.nconst,           
+    COUNT(*) AS num_filmes  
+FROM principals p
+JOIN ratings r ON p.tconst = r.tconst 
+JOIN basics b ON b.tconst = p.tconst   
+WHERE r.averageRating > 7.5            
+  AND b.titleType = 'movie'            
+  AND p.category IN ('actor', 'actress') 
+GROUP BY p.nconst                        
+ORDER BY num_filmes DESC                
+LIMIT 3;                                
+"""
+
+top_atores = pl.read_database(query, con)
+print(top_atores)
+```
+
+```{python}
+# Fecha a conexão com o banco após usar
+con.close()
+```
+
+
+
+```{r}
+# Registra quando o html foi gerado
+cat(paste0("Este HTML foi gerado em: ", Sys.time()))
+```
