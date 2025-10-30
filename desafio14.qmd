@@ -1,0 +1,235 @@
+---
+title: "Desafio 14"
+author: "Nicole de Barros Silva"
+format: 
+  html:
+    self-contained: true
+editor: visual
+---
+
+# **Laboratório 4: Visualização de Dados com `plotnine`**
+
+## **Objetivo**
+
+Criar visualizações adequadas utilizando a biblioteca `plotnine`. A atividade será baseada em um conjunto de dados com o qual é necessário realizar agregação, filtragem e transformação de dados antes de aplicar estratégias de visualização.
+
+## **O Conjunto de Dados**
+
+O conjunto de dados para esta atividade é o `diamonds`, que está disponível na biblioteca `plotnine.data`. O conjunto de dados `diamonds` contém informações sobre 53.940 diamantes. Ele é amplamente utilizado para a prática de visualização e análise de dados e contém as seguintes variáveis:
+
+| Variável | Tipo | Descrição |
+|-------------------------------------------------------------|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `carat` | Numérica | Peso do diamante, em quilates (carats). |
+| `cut` | Categórica | Qualidade do corte do diamante (Fair, Good, Very Good, Premium, Ideal). |
+| `color` | Categórica | Cor do diamante, onde D é a melhor (mais transparente) e J é a pior. |
+| `clarity` | Categórica | Clareza do diamante, categorizada por um padrão internacional (IF, VVS1, VVS2, etc.). |
+| `depth` | Numérica | Profundidade total do diamante como porcentagem da média do diâmetro. |
+| `table` | Numérica | Largura da parte superior do diamante (mesa) como uma porcentagem da largura total. |
+| `price` | Numérica | Preço do diamante, em dólares. |
+| `x` | Numérica | Comprimento do diamante, em milímetros. |
+| `y` | Numérica | Largura do diamante, em milímetros. |
+| `z` | Numérica | Altura do diamante, em milímetros. |
+
+### **Significado das Variáveis Categóricas**
+
+-   **Cut (Corte):**
+
+    -   *Fair*
+
+    -   *Good*
+
+    -   *Very Good*
+
+    -   *Premium*
+
+    -   *Ideal*
+
+-   **Color (Cor):**
+
+    -   D (Melhor)
+
+    -   E
+
+    -   F
+
+    -   G
+
+    -   H
+
+    -   I
+
+    -   J (Pior)
+
+-   **Clarity (Clareza):**
+
+    -   IF (Internally Flawless)
+
+    -   VVS1 (Very, Very Slightly Included 1)
+
+    -   VVS2 (Very, Very Slightly Included 2)
+
+    -   VS1 (Very Slightly Included 1)
+
+    -   VS2 (Very Slightly Included 2)
+
+    -   SI1 (Slightly Included 1)
+
+    -   SI2 (Slightly Included 2)
+
+    -   I1 (Included 1)
+
+### **Observações Importantes:**
+
+-   **Preço**: O preço dos diamantes varia de USD 326 a USD 18.823.
+
+-   **Peso (Carat)**: A variável `carat` vai de 0,2 a 5,01 quilates.
+
+-   **Proporções**: As variáveis `x`, `y` e `z` representam as dimensões físicas do diamante em milímetros.
+
+Este conjunto de dados é amplamente utilizado para explorar a relação entre variáveis categóricas (como `cut`, `color`, `clarity`) e numéricas (`price`, `carat`, etc.), especialmente em análises de regressão e visualizações de dados.
+
+## **Atividades**
+```{r}
+library(reticulate) #abre o pacote reticulate
+```
+
+```{r}
+virtualenv_create("r-reticulate", python = "C:/Program Files/Python312/python.exe") #cria um ambiente virtual para usar python
+```
+
+```{r}
+use_virtualenv("r-reticulate", required = TRUE) #manda usar o ambiente virtual criado
+py_config() # mostra as informações de configuração do Python que o reticulate está usando 
+```
+```{r}
+# Instala o pacote "polars" dentro do ambiente virtual "r-reticulate"
+py_install("polars", envname = "r-reticulate")
+# Instala o pacote "plotnine" dentro do ambiente virtual "r-reticulate"
+py_install("plotnine", envname = "r-reticulate")
+```
+
+
+
+1.  Importe o conjunto de dados `diamonds`, cujo arquivo está disponível no website da disciplina.
+```{python}
+# Importa o conjunto de dados "diamonds" da biblioteca plotnine.data
+from plotnine.data import diamonds
+print(diamonds.head())
+```
+
+2.  Crie uma visualização de dados que descreva a associação existente entre as variáveis peso (`carat`) e preço (`price`). Que ações você tomou para garantir que você produziu um gráfico de boa qualidade? Escreva um parágrafo comunicando os seus achados.
+```{python}
+# Importa as funções necessárias da biblioteca plotnine para criar o gráfico
+from plotnine import ggplot, aes, geom_point, labs, theme_minimal, scale_x_continuous, scale_y_continuous
+
+# Cria o gráfico de dispersão entre o peso (carat) e o preço (price) dos diamantes
+a = (
+    ggplot(diamonds, aes(x='carat', y='price')) +
+    geom_point(alpha=0.4, color='blue') +  # transparência para sobreposição
+    scale_x_continuous(limits=(0, 5)) +    # focar nos diamantes mais comuns
+    scale_y_continuous(limits=(0, 20000)) +
+    labs(
+        title='Relação entre Peso (carat) e Preço dos Diamantes',
+        x='Peso (carat)',
+        y='Preço (USD)'
+    ) +
+    theme_minimal()  # tema limpo e profissional
+)
+# Salva o gráfico gerado em um arquivo de imagem PNG
+a.save("a.png")
+```
+```{r}
+# Exibe o gráfico salvo anteriormente ("a.png")
+knitr::include_graphics("a.png")
+```
+Boas práticas aplicadas:
+-Transparência (alpha=0.4): ajuda a visualizar a densidade de pontos mesmo com sobreposição.
+-Limites dos eixos: foca nos diamantes mais comuns e evita que outliers distorçam a visualização.
+-Tema minimalista: deixa o gráfico limpo e legível.
+-Cores suaves: azul para os pontos, agradável à visualização.
+-Títulos e labels claros: comunicação precisa do que está sendo mostrado.
+
+O gráfico mostra uma relação positiva entre o peso (carat) e o preço (price) dos diamantes: conforme o peso aumenta, o preço tende a crescer. No entanto, há dispersão, principalmente para diamantes maiores, mostrando que nem todos os diamantes mais pesados seguem um padrão linear exato de preço. A maioria dos diamantes está concentrada com até 2 carats e preços abaixo de 10.000 USD, indicando que outliers com preços muito altos ou pesos muito grandes são relativamente raros, mas influenciam a distribuição geral dos dados.
+
+3.  A relação identificada na questão anterior é a mesma relação presente nos diferentes cortes de diamantes? Crie uma visualização que demonstre seus achados eficientemente. Descreva sua conclusão em um parágrafo.
+```{python}
+# Importa as funções necessárias da biblioteca plotnine para criação do gráfico
+from plotnine import (
+    ggplot, aes, geom_point, geom_smooth, facet_wrap,
+    labs, theme_minimal, theme, element_text
+)
+# Cria o gráfico de dispersão mostrando a relação entre peso (carat) e preço (price) e divide o gráfico por tipo de corte (cut)
+b = (
+    ggplot(diamonds, aes(x='carat', y='price')) +
+    geom_point(alpha=0.3, color='#1f77b4', size=1.2) +  # azul padrão, transparente
+    geom_smooth(method='lm', color='red', se=False, size=1) +  # linha de tendência
+    facet_wrap('~cut', ncol=3) +  # organiza os facets em 3 colunas
+    labs(
+        title='Relação entre Peso (Carat) e Preço (USD) por Corte do Diamante',
+        x='Peso (carat)',
+        y='Preço (USD)'
+    ) +
+    theme_minimal(base_size=12) +
+    theme(
+        plot_title=element_text(size=14, weight='bold', ha='center'),
+        axis_title=element_text(size=12),
+        axis_text=element_text(size=10),
+        strip_text=element_text(size=11, weight='bold'),
+        figure_size=(10, 6)
+    )
+)
+# Salva o gráfico gerado em um arquivo de imagem PNG
+b.save("b.png")
+```
+```{r}
+# Exibe o gráfico salvo anteriormente ("b.png")
+knitr::include_graphics("b.png")
+```
+O gráfico mostra que a relação positiva entre o peso (carat) e o preço (price) se mantém em todos os tipos de corte de diamante. Observa-se que cortes de maior qualidade, como Ideal e Premium, apresentam preços mais altos para o mesmo peso em comparação aos cortes Fair e Good. Além disso, o aumento do peso tende a elevar o preço de forma acentuada, mas com maior dispersão para valores altos de carat. Assim, o corte influencia a escala de preço, mas a tendência geral de crescimento permanece consistente entre os grupos.
+
+4.  Crie uma visualização que mostre a relação entre preço e peso do diamante, considerando as diferentes combinações de qualidade de corte, cor e clareza do diamante. Quais foram as dificuldades encontradas? A relação entre preço e peso é a mesma para diferentes configurações de diamantes?
+
+```{python}
+# Importa as funções necessárias da biblioteca plotnine para construção do gráfico
+from plotnine import (
+    ggplot, aes, geom_point,
+    facet_grid, labs, theme_minimal, theme, element_text
+)
+
+#Cria o gráfico de dispersão mostrando a relação entre preço (price) e peso (carat) considerando, simultaneamente, as variáveis categóricas: corte (cut), cor (color) e clareza (clarity)
+c = (
+    ggplot(diamonds, aes(x='carat', y='price', color='clarity')) +
+    geom_point(alpha=0.3, size=1) +
+    facet_grid('cut ~ color') +  # linhas = corte, colunas = cor
+    labs(
+        title='Relação entre Preço e Peso do Diamante\npor Corte, Cor e Clareza',
+        x='Peso (carat)',
+        y='Preço (USD)',
+        color='Clareza'
+    ) +
+    theme_minimal(base_size=11) +
+    theme(
+        plot_title=element_text(size=14, weight='bold', ha='center'),
+        axis_title=element_text(size=11),
+        axis_text=element_text(size=9),
+        strip_text=element_text(size=10, weight='bold'),
+        legend_title=element_text(size=10),
+        legend_text=element_text(size=9),
+        figure_size=(11, 7)
+    )
+)
+# Salva o gráfico gerado como uma imagem PNG 
+c.save("c.png")
+```
+```{r}
+# Exibe a imagem "c.png" 
+knitr::include_graphics("c.png")
+```
+
+A visualização mostra a relação positiva entre peso (carat) e preço (price) em todas as combinações de corte, cor e clareza. No entanto, percebe-se que a inclinação da relação varia conforme a qualidade: cortes mais refinados e cores mais raras tendem a apresentar preços mais elevados para o mesmo peso. A clareza também exerce influência — diamantes mais puros (alta clareza) costumam concentrar-se nas faixas de preço mais altas.
+Uma das principais dificuldades encontradas foi a densidade e sobreposição de pontos, já que o conjunto diamonds contém mais de 50.000 observações. Além disso, representar simultaneamente três variáveis categóricas e duas numéricas exige muito cuidado para evitar poluição visual. Mesmo assim, o padrão geral se mantém: o preço cresce com o peso, mas o ritmo desse crescimento depende fortemente da combinação de corte, cor e clareza.
+
+```{r}
+# Registra quando o html foi gerado
+cat(paste0("Este HTML foi gerado em: ", Sys.time()))
+```
