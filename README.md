@@ -1,9 +1,9 @@
 # Manipulação de Banco de Dados
 
 Este repositório contém as resoluções dos desafios da disciplina
-**Manipulação de Banco de Dados**.
+**ME315 - Manipulação de Banco de Dados**.
 
-## O que tem aqui
+## Os arquivos contém:
 
 - Resoluções de desafios dados em aula
 - Códigos em R, Python, SQLite e Julia
@@ -11,4 +11,4 @@ Este repositório contém as resoluções dos desafios da disciplina
 
 ## Contexto
 
-Trabalhos desenvolvidos durante a graduação em Estatística.
+Atividades desenvolvidas durante a graduação em Estatística, na Universidade Estadual de Campinas (UNICAMP).
